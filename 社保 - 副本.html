@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>社保证明扫码验证 - 测试版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入二维码生成库 -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <style>
+        /* 模拟 PDF 浏览器的深色背景 */
+        .pdf-viewer-bg { background-color: #333333; }
+        .pdf-toolbar { background-color: #2d2d2d; border-bottom: 1px solid #1a1a1a; }
+        /* 确保满屏显示 */
+        html, body { height: 100%; margin: 0; padding: 0; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans h-screen flex flex-col">
+
+    <!-- 模拟浏览器顶部或APP内嵌顶部 -->
+    <header class="bg-gray-900 text-white p-3 flex items-center justify-between text-sm">
+        <span class="text-lg cursor-pointer">✕</span>
+        <span class="text-gray-300">www.test-system.example</span>
+        <span class="text-lg tracking-widest cursor-pointer">...</span>
+    </header>
+
+    <!-- 标题区域 -->
+    <div class="bg-white px-4 py-3 border-b flex items-center text-blue-500 font-medium">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+        测试系统证明扫码验证
+    </div>
+
+    <!-- 主体内容区：表单 -->
+    <main id="formSection" class="bg-white px-4 py-2 flex-1 flex flex-col">
+        <div>
+            <div class="border-b py-4 flex items-center">
+                <span class="w-20 text-gray-600 text-sm">验证号码</span>
+                <input type="text" value="Ye87TWbNygFkj1QBEYy6" readonly class="flex-1 outline-none text-gray-800 text-sm bg-transparent">
+            </div>
+            
+            <div class="border-b py-3 flex items-center">
+                <span class="w-20 text-gray-600 text-sm">验证码</span>
+                <input type="text" id="captchaInput" placeholder="请输入图形验证" class="flex-1 outline-none text-sm bg-transparent placeholder-gray-400">
+                
+                <!-- 动态 Canvas 验证码区域 -->
+                <div class="w-24 h-10 border border-gray-300 cursor-pointer overflow-hidden" title="点击刷新验证码" onclick="generateCaptcha()">
+                    <canvas id="captchaCanvas" width="96" height="40" class="w-full h-full"></canvas>
+                </div>
+            </div>
+
+            <button id="queryBtn" class="w-full bg-blue-500 text-white py-2.5 rounded mt-6 hover:bg-blue-600 active:bg-blue-700 transition font-medium">
+                查 询
+            </button>
+            <p id="errorMsg" class="text-red-500 text-xs mt-2 text-center hidden">验证码错误，请重新输入</p>
+        </div>
+
+        <!-- 二维码显示区域 -->
+        <div class="mt-16 flex flex-col items-center justify-center border-t pt-6">
+            <p class="text-sm text-gray-500 mb-3">请使用微信扫码，在手机端测试当前页面</p>
+            <div id="qrcode" class="p-2 bg-white shadow-md rounded border border-gray-100"></div>
+            <p class="text-xs text-gray-400 mt-2 text-center w-full max-w-xs">（注：需将此页面部署到服务器，扫码才能访问同网环境下的页面）</p>
+        </div>
+    </main>
+
+    <!-- 主体内容区：文档展示 (初始隐藏) -->
+    <main id="resultSection" class="hidden flex-1 flex flex-col bg-gray-100 overflow-hidden h-full">
+        <!-- 模拟 PDF 阅读器工具栏 -->
+        <div class="pdf-toolbar text-gray-300 flex items-center justify-between px-3 py-2 text-sm flex-none">
+            <div class="flex items-center space-x-4">
+                <svg class="w-4 h-4 cursor-pointer" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
+                <svg class="w-4 h-4 cursor-pointer" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <div class="bg-gray-700 px-3 py-0.5 rounded text-white flex items-center">
+                    <input type="text" value="1" readonly class="w-4 bg-transparent text-center outline-none text-xs"> / 1
+                </div>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span class="cursor-pointer text-lg leading-none">−</span>
+                <span class="cursor-pointer text-lg leading-none">+</span>
+                <svg class="w-5 h-5 cursor-pointer ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
+            </div>
+        </div>
+        
+        <!-- 嵌入指定的 PDF 文件 -->
+        <div class="pdf-viewer-bg flex-1 w-full h-full overflow-hidden flex justify-center">
+            <iframe src="20260320个人社保参保证明查询120733.pdf" class="w-full h-full border-0" type="application/pdf" title="社保证明文档">
+                您的浏览器不支持 PDF 预览，请下载查看。
+            </iframe>
+        </div>
+    </main>
+
+    <!-- 弹窗 (初始隐藏) -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-40 hidden flex items-center justify-center z-50 transition-opacity">
+        <div class="bg-white w-4/5 max-w-xs rounded-lg overflow-hidden shadow-2xl transform scale-95 transition-transform" id="modalContent">
+            <div class="p-6 text-center">
+                <h3 class="text-lg font-medium text-gray-900 mb-5">提示</h3>
+                <div class="text-sm text-gray-600 text-left space-y-2 ml-2">
+                    <p>数据来源：通用测试系统区块链。</p>
+                    <p id="timeDisplay">上链时间：</p>
+                </div>
+            </div>
+            <button id="confirmBtn" class="w-full border-t border-gray-200 py-3 text-blue-500 font-medium hover:bg-gray-50 active:bg-gray-100 transition">
+                确认
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- 二维码自动生成逻辑 ---
+        window.addEventListener('DOMContentLoaded', () => {
+            const qrcodeContainer = document.getElementById("qrcode");
+            if(qrcodeContainer) {
+                // 获取当前页面的完整 URL 地址生成二维码
+                new QRCode(qrcodeContainer, {
+                    text: window.location.href, 
+                    width: 160,
+                    height: 160,
+                    colorDark : "#111827",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+            }
+        });
+
+        // --- 验证码逻辑 ---
+        let currentCaptcha = "";
+
+        function generateCaptcha() {
+            const canvas = document.getElementById('captchaCanvas');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // 清空画布
+            ctx.clearRect(0, 0, width, height);
+
+            // 填充浅灰色背景
+            ctx.fillStyle = '#e5e7eb';
+            ctx.fillRect(0, 0, width, height);
+
+            // 生成4位随机数字
+            currentCaptcha = Math.floor(1000 + Math.random() * 9000).toString();
+
+            // 绘制干扰线
+            for (let i = 0; i < 5; i++) {
+                ctx.strokeStyle = `rgba(0, 0, 0, ${Math.random() * 0.2 + 0.1})`;
+                ctx.beginPath();
+                ctx.moveTo(Math.random() * width, Math.random() * height);
+                ctx.lineTo(Math.random() * width, Math.random() * height);
+                ctx.stroke();
+            }
+
+            // 绘制文字
+            ctx.font = 'bold 24px Arial';
+            ctx.fillStyle = '#4b5563'; // 深灰色文字
+            ctx.textBaseline = 'middle';
+
+            for (let i = 0; i < currentCaptcha.length; i++) {
+                const char = currentCaptcha[i];
+                const x = 10 + i * 20;
+                const y = height / 2;
+                
+                // 随机轻微旋转
+                const angle = (Math.random() - 0.5) * 0.4;
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle);
+                ctx.fillText(char, 0, 0);
+                ctx.restore();
+            }
+        }
+
+        // 初始化加载验证码
+        window.onload = generateCaptcha;
+
+        // --- 页面交互逻辑 ---
+        const queryBtn = document.getElementById('queryBtn');
+        const modal = document.getElementById('modal');
+        const modalContent = document.getElementById('modalContent');
+        const confirmBtn = document.getElementById('confirmBtn');
+        const formSection = document.getElementById('formSection');
+        const resultSection = document.getElementById('resultSection');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const captchaInput = document.getElementById('captchaInput');
+        const errorMsg = document.getElementById('errorMsg');
+
+        // 获取格式化时间 YYYY-MM-DD HH:mm:ss
+        function getFormattedTime() {
+            const now = new Date();
+            return now.getFullYear() + '-' + 
+                   String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                   String(now.getDate()).padStart(2, '0') + ' ' + 
+                   String(now.getHours()).padStart(2, '0') + ':' + 
+                   String(now.getMinutes()).padStart(2, '0') + ':' + 
+                   String(now.getSeconds()).padStart(2, '0');
+        }
+
+        // 点击查询
+        queryBtn.addEventListener('click', () => {
+            const userInput = captchaInput.value.trim();
+            
+            // 简单校验验证码
+            if (userInput !== currentCaptcha) {
+                errorMsg.classList.remove('hidden');
+                generateCaptcha(); // 验证失败刷新验证码
+                captchaInput.value = ''; // 清空输入框
+                return;
+            }
+
+            // 验证成功，隐藏错误提示
+            errorMsg.classList.add('hidden');
+
+            // 设置弹窗时间
+            const currentTime = getFormattedTime();
+            timeDisplay.textContent = '上链时间：' + currentTime;
+            
+            // 显示弹窗
+            modal.classList.remove('hidden');
+            // 简单的入场动画
+            setTimeout(() => {
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 10);
+        });
+
+        // 点击弹窗确认
+        confirmBtn.addEventListener('click', () => {
+            // 隐藏弹窗
+            modal.classList.add('hidden');
+            // 隐藏表单部分
+            formSection.classList.add('hidden');
+            // 显示结果部分（包含您的真实 PDF iframe）
+            resultSection.classList.remove('hidden');
+            resultSection.classList.add('flex'); // 保持 flex 布局
+        });
+    </script>
+</body>
+</html>
